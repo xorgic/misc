@@ -1,0 +1,60 @@
+#!/bin/zsh
+
+EXEC_NAME=$0
+
+KEY_NAME=$2
+
+
+function upload {
+	echo "\033[0;36m=> Uploading to lastpass: \033[0m"
+
+	KEY_PATH="${HOME}/.ssh/${KEY_NAME}"
+
+	if [[ ! -e ${KEY_PATH} ]]; then
+		echo "File doesn't exists"
+		exit 0
+	fi
+
+	PRIVATE_KEY=$(cat ${KEY_PATH} | tr '\n' '$$')
+	if [[ -e "${KEY_PATH}.pub" ]]; then
+		PUBLIC_KEY=$(cat "${KEY_PATH}.pub")
+	fi
+	echo "Enter passphrase: "; read -s PASSPHRASE
+
+	echo "Name: SSH/${KEY_NAME}\nDate: ,,\nHostname: \nPublic Key: ${PUBLIC_KEY}\nPrivate Key: ${PRIVATE_KEY}\nPassphrase: ${PASSPHRASE}\nFormat: RSA\nBit Strength: \nNoteType: SSH Key\nNotes:\n" | lpass add SSH/${KEY_NAME} --note-type=ssh-key --non-interactive
+	if [[ $? -eq 0 ]]; then
+		echo "\033[0;32mSuccess\033[0m"
+		lpass sync
+	else
+		echo "\033[0;31mFailure\033[0m"
+		exit 1;
+	fi
+}
+
+function use {
+	echo "\033[0;36m=> Adding ${KEY_NAME} to SSH-Agent: \033[0m"
+	LASTPASS=$(lpass show ${KEY_NAME})
+	export PASSPHRASE="$(echo ${LASTPASS} | perl -nle 'print $1 if m/Passphrase: (.*$)/g')"
+	PRIVATE_KEY=$(echo ${LASTPASS} | perl -nle 'print $1 if m/Private Key: (.*$)/g' | tr '$$' '\n')
+	echo ${PRIVATE_KEY} | SSH_ASKPASS="${HOME}/${EXEC_NAME}" ssh-add -
+	if [[ $? -eq 0 ]]; then
+		echo "\033[0;32mSuccess\033[0m"
+		lpass sync
+	else
+		echo "\033[0;31mFailure\033[0m"
+		exit 1;
+	fi
+}
+
+
+case "$1" in
+	upload)
+		upload
+		;;
+	use)
+		use
+		;;
+	*)
+		echo ${PASSPHRASE}
+		;;
+esac
